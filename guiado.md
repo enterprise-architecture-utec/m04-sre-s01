@@ -3,7 +3,7 @@
 
 **Programa:** Arquitectura de Soluciones Multinube — UTEC Posgrado  
 **Docente:** Aldo Trucios  
-**Duración estimada:** 2 horas  
+**Duración estimada:** 1 hora 
 **Nivel:** Intermedio
 
 ---
