@@ -162,6 +162,7 @@ Crea el archivo `lambda_package/lambda_function.py` con el siguiente contenido c
 
 ```python
 """
+"""
 Lab M08S01 — Función Lambda de pagos simulada.
 Observabilidad nativa con:
   • CloudWatch Logs (logs estructurados JSON via print/logging)
@@ -387,7 +388,6 @@ ROUTES = {
     "/simulate-load": handle_simulate_load,
 }
 
-
 def lambda_handler(event: dict, context):
     """
     Punto de entrada principal de la Lambda.
@@ -405,8 +405,11 @@ def lambda_handler(event: dict, context):
              remaining_ms=context.get_remaining_time_in_millis())
 
     # Anotaciones X-Ray a nivel de segmento raíz
-    xray_recorder.current_segment().put_annotation("alumno_id", ALUMNO_ID)
-    xray_recorder.current_segment().put_annotation("path", path)
+    try:
+        xray_recorder.current_segment().put_annotation("alumno_id", ALUMNO_ID)
+        xray_recorder.current_segment().put_annotation("path", path)
+    except Exception:
+        pass
 
     handler_fn = ROUTES.get(path, handle_health)
 
