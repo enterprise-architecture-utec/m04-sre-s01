@@ -509,7 +509,6 @@ LAMBDA_ARN=$(aws lambda create-function \
     --memory-size 256 \
     --environment "Variables={
         ALUMNO_ID=${ALUMNO_ID},
-        AWS_REGION=${AWS_REGION},
         APP_NAME=${LAMBDA_NAME},
         METRIC_NAMESPACE=LabObservabilidad/${ALUMNO_ID}
     }" \
@@ -522,7 +521,6 @@ echo "✅ Lambda creada:"
 echo "   ARN: $LAMBDA_ARN"
 export LAMBDA_ARN
 
-# Esperar que la función esté activa
 aws lambda wait function-active \
     --function-name "$LAMBDA_NAME" \
     --region $AWS_REGION
