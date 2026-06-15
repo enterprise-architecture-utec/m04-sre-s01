@@ -162,7 +162,6 @@ Crea el archivo `lambda_package/lambda_function.py` con el siguiente contenido c
 
 ```python
 """
-"""
 Lab M08S01 — Función Lambda de pagos simulada.
 Observabilidad nativa con:
   • CloudWatch Logs (logs estructurados JSON via print/logging)
