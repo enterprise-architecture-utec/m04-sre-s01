@@ -8,7 +8,7 @@
 | **Módulo** | 8 — Observabilidad y Optimización de Costos |
 | **Sesión** | 1 — Fundamentos de Observabilidad |
 | **Duración estimada** | 30 a 60 minutos |
-| **Prerrequisito** | Laboratorio guiado completado (Lambda + API Gateway + CloudWatch funcionando) |
+| **Prerrequisito** | Laboratorio guiado local completado; para los entregables AWS, extensión B desplegada con permisos y presupuesto autorizados |
 
 ---
 
@@ -16,7 +16,9 @@
 
 El equipo de negocio de **FinPago S.A.** reportó que los clientes con saldo insuficiente generan reintentos automáticos que están saturando el servicio de pagos. El área de operaciones necesita visibilidad específica sobre ese tipo de fallo para poder alertar antes de que impacte a otros usuarios.
 
-Tu tarea es extender el sistema de observabilidad que construiste en el laboratorio guiado.
+Tu tarea es extender el sistema de observabilidad que construiste en el laboratorio guiado. Trabajen en equipos de tres: todos deben comprender y validar el resultado completo. Los datos y usuarios deben ser sintéticos.
+
+La ruta local se puede completar sin AWS: implementen y prueben el endpoint en `lab/app.py`, registren el evento y analicen sus datos en `data/requests.jsonl`. Una alarma SNS y una consulta Logs Insights **requieren AWS real**; si no tienen acceso, documenten la consulta y el diseño de alarma como propuestas, sin afirmar que se ejecutaron.
 
 ---
 
@@ -24,19 +26,19 @@ Tu tarea es extender el sistema de observabilidad que construiste en el laborato
 
 ### 1. Nuevo endpoint `/insufficient-funds`
 
-Agrega un nuevo handler a tu función Lambda que simule el escenario de saldo insuficiente. El endpoint debe:
+Agrega una ruta que simule el escenario de saldo insuficiente. Para la extensión AWS, modifiquen el código `Code.ZipFile` en `aws/template.yaml` y vuelvan a desplegar el mismo stack con el comando de B2 del laboratorio guiado. La API usa una ruta `$default`, por lo que la función debe reconocer explícitamente el nuevo path. El endpoint debe:
 
 - Emitir un **log estructurado JSON** con los campos relevantes del evento de negocio.
-- Publicar una **métrica custom** en tu namespace `LabObservabilidad/alumno-XX` en CloudWatch.
+- En AWS, publicar una **métrica custom** en `LabObservabilidad/${TEAM_ID}` con dimensión `AppName` igual a `LAMBDA_NAME`. Localmente, analizar los eventos desde los logs; no es una métrica CloudWatch.
 - Retornar un **código HTTP apropiado** para este tipo de error.
 
 ### 2. Alarma CloudWatch
 
-Crea una alarma que notifique vía **SNS** cuando los errores de saldo insuficiente superen un umbral razonable en una ventana de tiempo definida por ti.
+En AWS, crea una alarma que notifique vía el topic **SNS** del stack cuando los errores de saldo insuficiente superen un umbral razonable en una ventana de tiempo definida por ti. En local, documenten el umbral y la acción propuesta sin simular que existe SNS.
 
 ### 3. Consulta en Logs Insights
 
-Escribe una consulta en **CloudWatch Logs Insights** que responda:
+Escribe una consulta en **CloudWatch Logs Insights** que responda (ejecútenla solo si tienen acceso AWS):
 
 > *¿Qué usuarios están generando más errores de saldo insuficiente y cuántos intentos hicieron?*
 
@@ -45,7 +47,8 @@ Escribe una consulta en **CloudWatch Logs Insights** que responda:
 ## 💡 Indicaciones
 
 - Puedes usar **IA generativa** para escribir el código, pero debes ser capaz de explicar cada decisión que tomaste.
-- Apóyate en el código del laboratorio guiado como referencia de estructura y patrones.
+- Apóyate en `lab/app.py` y `aws/template.yaml` como referencia de estructura y patrones. La implementación AWS de la plantilla no registra `user_id` por defecto: si lo agregan, usen identificadores sintéticos y eviten datos sensibles.
+- Una alarma añadida fuera de CloudFormation no forma parte del stack y deben eliminarla explícitamente al final.
 - No hay una única solución correcta. Se evalúa que los tres entregables funcionen de forma coherente.
 
 ---
@@ -81,7 +84,7 @@ Una vez que tengas todo funcionando, responde brevemente:
 
 ## 🧹 Recuerda limpiar tus recursos al finalizar
 
-Ejecuta el bloque de limpieza del laboratorio guiado para eliminar todos los recursos creados y evitar costos innecesarios en la cuenta AWS.
+Eliminen primero las alarmas u otros recursos creados manualmente para este reto, y luego ejecuten la sección B7 del laboratorio guiado para eliminar el stack y comprobar la limpieza. Detengan el Codespace cuando terminen.
 
 ---
 

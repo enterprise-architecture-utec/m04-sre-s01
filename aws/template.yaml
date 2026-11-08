@@ -1,0 +1,236 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Laboratorio de observabilidad serverless - datos simulados
+Parameters:
+  TeamId:
+    Type: String
+    AllowedPattern: '[a-z0-9-]{1,20}'
+    Description: Identificador unico en la cuenta y region, por ejemplo equipo-01
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/payment-lambda-${TeamId}'
+      RetentionInDays: 7
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: telemetry
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub '${LogGroup.Arn}'
+              - Effect: Allow
+                Action: [xray:PutTraceSegments, xray:PutTelemetryRecords]
+                Resource: '*'
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: !Sub 'LabObservabilidad/${TeamId}'
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'payment-lambda-${TeamId}'
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt Role.Arn
+      Timeout: 15
+      MemorySize: 256
+      TracingConfig:
+        Mode: Active
+      Environment:
+        Variables:
+          APP_NAME: !Sub 'payment-lambda-${TeamId}'
+          METRIC_NAMESPACE: !Sub 'LabObservabilidad/${TeamId}'
+      Code:
+        ZipFile: |
+          import json, os, time
+          import boto3
+
+          cw = boto3.client("cloudwatch")
+          APP = os.environ["APP_NAME"]
+          NAMESPACE = os.environ["METRIC_NAMESPACE"]
+
+          def handler(event, context):
+              path = event.get("rawPath", "/health")
+              method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+              started = time.perf_counter()
+              if path == "/exception" and method == "GET":
+                  print(json.dumps({"event_type": "unhandled_exception", "path": path,
+                                    "request_id": context.aws_request_id,
+                                    "xray_trace": os.environ.get("_X_AMZN_TRACE_ID")}))
+                  raise RuntimeError("controlled exception for lab")
+              if path == "/health" and method == "GET":
+                  status, body = 200, {"status": "ok"}
+              elif path == "/pay" and method == "POST":
+                  time.sleep(0.03)
+                  status, body = 200, {"status": "paid", "simulated": True}
+              elif path == "/slow" and method == "GET":
+                  time.sleep(0.8)
+                  status, body = 200, {"status": "ok", "simulated": True}
+              elif path == "/error" and method == "GET":
+                  status, body = 500, {"error": "controlled failure", "simulated": True}
+              else:
+                  status, body = 404, {"error": "not found"}
+              latency = round((time.perf_counter() - started) * 1000, 2)
+              print(json.dumps({"event_type": "request", "path": path, "method": method,
+                                "status": status, "latency_ms": latency,
+                                "request_id": context.aws_request_id,
+                                "xray_trace": os.environ.get("_X_AMZN_TRACE_ID"),
+                                "simulated": True}))
+              metrics = [{"MetricName": "RequestLatency", "Value": latency, "Unit": "Milliseconds",
+                          "Dimensions": [{"Name": "AppName", "Value": APP}]}]
+              if status >= 500:
+                  metrics.append({"MetricName": "Http5xx", "Value": 1, "Unit": "Count",
+                                  "Dimensions": [{"Name": "AppName", "Value": APP}]})
+              try:
+                  cw.put_metric_data(Namespace=NAMESPACE, MetricData=metrics)
+              except Exception as exc:
+                  print(json.dumps({"event_type": "metric_publish_failed", "error": str(exc),
+                                    "request_id": context.aws_request_id}))
+              return {"statusCode": status, "headers": {"Content-Type": "application/json"},
+                      "body": json.dumps(body)}
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub 'payment-api-${TeamId}'
+      ProtocolType: HTTP
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt Function.Arn
+      PayloadFormatVersion: '2.0'
+  Route:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: '$default'
+      Target: !Sub 'integrations/${Integration}'
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref Api
+      StageName: '$default'
+      AutoDeploy: true
+  Permission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Function
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*'
+  ErrorFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref LogGroup
+      FilterPattern: '{ $.status >= 500 }'
+      MetricTransformations:
+        - MetricName: Http5xxFromLogs
+          MetricNamespace: !Sub 'LabObservabilidad/${TeamId}'
+          MetricValue: '1'
+          DefaultValue: 0
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'alertas-obs-${TeamId}'
+  HttpAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'Http5xx-${TeamId}'
+      AlarmDescription: 'Errores HTTP 5xx de la aplicacion; umbral didactico'
+      Namespace: !Sub 'LabObservabilidad/${TeamId}'
+      MetricName: Http5xx
+      Dimensions:
+        - Name: AppName
+          Value: !Ref Function
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+  LatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'Latency-p99-${TeamId}'
+      Namespace: !Sub 'LabObservabilidad/${TeamId}'
+      MetricName: RequestLatency
+      Dimensions:
+        - Name: AppName
+          Value: !Ref Function
+      ExtendedStatistic: p99
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 700
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+  LambdaAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'LambdaErrors-${TeamId}'
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref Function
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+  ThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'LambdaThrottles-${TeamId}'
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref Function
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Topic]
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'observabilidad-${TeamId}'
+      DashboardBody: !Sub |
+        {"widgets":[
+          {"type":"metric","x":0,"y":0,"width":8,"height":6,"properties":{"title":"Invocaciones Lambda","region":"${AWS::Region}","period":60,"stat":"Sum","metrics":[["AWS/Lambda","Invocations","FunctionName","${Function}"]]}},
+          {"type":"metric","x":8,"y":0,"width":8,"height":6,"properties":{"title":"Errores HTTP vs excepciones Lambda","region":"${AWS::Region}","period":60,"stat":"Sum","metrics":[["LabObservabilidad/${TeamId}","Http5xx","AppName","${Function}"],["AWS/Lambda","Errors","FunctionName","${Function}"]]}},
+          {"type":"metric","x":16,"y":0,"width":8,"height":6,"properties":{"title":"Latencia de aplicación ms","region":"${AWS::Region}","period":60,"metrics":[["LabObservabilidad/${TeamId}","RequestLatency","AppName","${Function}",{"stat":"p50"}],["LabObservabilidad/${TeamId}","RequestLatency","AppName","${Function}",{"stat":"p90"}],["LabObservabilidad/${TeamId}","RequestLatency","AppName","${Function}",{"stat":"p99"}]]}},
+          {"type":"metric","x":0,"y":6,"width":12,"height":6,"properties":{"title":"Saturación: throttles","region":"${AWS::Region}","period":60,"stat":"Sum","metrics":[["AWS/Lambda","Throttles","FunctionName","${Function}"]]}},
+          {"type":"metric","x":12,"y":6,"width":12,"height":6,"properties":{"title":"Concurrencia máxima","region":"${AWS::Region}","period":60,"stat":"Maximum","metrics":[["AWS/Lambda","ConcurrentExecutions","FunctionName","${Function}"]]}}
+        ]}
+Outputs:
+  ApiUrl:
+    Value: !GetAtt Api.ApiEndpoint
+  LogGroupName:
+    Value: !Ref LogGroup
+  TopicArn:
+    Value: !Ref Topic
+  FunctionName:
+    Value: !Ref Function
+  DashboardName:
+    Value: !Ref Dashboard

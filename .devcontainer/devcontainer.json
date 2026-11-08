@@ -1,0 +1,17 @@
+{
+  "name": "Fundamentos de observabilidad",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/aws-cli:1": {
+      "version": "2"
+    }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends git zip curl && python -m pip install -r requirements.txt",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "Laboratorio de observabilidad",
+      "visibility": "private"
+    }
+  }
+}
