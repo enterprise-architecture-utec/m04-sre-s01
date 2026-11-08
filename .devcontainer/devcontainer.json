@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/devcontainers/features/git:1": {}
   },
-  "onCreateCommand": "bash .devcontainer/install-aws-cli.sh",
+  "onCreateCommand": "sudo apt-get update && sudo apt-get install -y ca-certificates curl unzip zip && bash .devcontainer/install-aws-cli.sh",
   "postCreateCommand": "aws --version && python --version && zip -v | head -n 2",
   "customizations": {
     "vscode": {
