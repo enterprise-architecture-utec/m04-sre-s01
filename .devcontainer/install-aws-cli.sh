@@ -7,8 +7,13 @@ if command -v aws >/dev/null 2>&1; then
   exit 0
 fi
 
+# La imagen base puede incluir un repositorio de Yarn con una clave GPG vencida
+# o ausente. No lo necesitamos para este laboratorio.
+sudo rm -f /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarn.sources
+
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl unzip zip
+
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
