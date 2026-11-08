@@ -42,84 +42,28 @@ Al finalizar este laboratorio, el alumno será capaz de:
 
 ## 2. Prerrequisitos
 
-Puedes trabajar en tu computadora o abrir el repositorio en GitHub Codespaces. **No necesitas un Dev Container**: instala o verifica las herramientas desde la terminal.
-
 | Requisito | Detalle |
 |-----------|---------|
-| Cuenta AWS | Permisos para crear los recursos de Lambda, API Gateway, CloudWatch, SNS, X-Ray y el rol IAM del laboratorio |
-| Python | Python 3.11 o superior |
-| AWS CLI | Versión 2 |
-| ZIP | `zip` en macOS/Linux; en Windows puedes usar PowerShell `Compress-Archive` |
-| Terminal | Terminal local, VS Code o GitHub Codespaces |
+| Cuenta AWS | Con permisos: `LambdaFullAccess`, `APIGatewayAdministrator`, `CloudWatchFullAccess`, `SNSFullAccess`, `AWSXRayFullAccess`, `IAMFullAccess` |
+| Python | 3.11 o superior instalado localmente |
+| AWS CLI | v2 instalado y configurado con `aws configure` |
+| zip | Disponible en terminal (`zip --version`) |
+| Editor | VS Code u otro editor de texto |
 
-### 2.1 Instalar o verificar Python
-
-Comprueba si ya está instalado:
+### Verificar AWS CLI
 
 ```bash
-python3 --version
-```
-
-Debe mostrar Python 3.11 o superior. Si no está instalado:
-
-- **macOS:** instala desde [python.org](https://www.python.org/downloads/macos/) o ejecuta `brew install python` si tienes Homebrew.
-- **Windows:** descarga desde [python.org](https://www.python.org/downloads/windows/). Durante la instalación, marca **Add Python to PATH**. Abre una nueva terminal y verifica con `py --version` o `python --version`.
-- **Ubuntu/Debian Linux:** ejecuta `sudo apt update && sudo apt install -y python3 python3-pip python3-venv`. Comprueba que la versión sea 3.11 o superior; si es anterior, instala una versión compatible desde [python.org](https://www.python.org/downloads/).
-
-En GitHub Codespaces, abre la terminal integrada y ejecuta la comprobación. Si ya tienes la versión requerida, no necesitas instalarla otra vez.
-
-### 2.2 Instalar o verificar AWS CLI v2
-
-Comprueba la instalación:
-
-```bash
-aws --version
-```
-
-La salida debe comenzar con `aws-cli/2.`. Si no está instalado o aparece la versión 1, instala la versión 2:
-
-- **macOS:** sigue la [guía oficial para macOS](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) o ejecuta `brew install awscli` si tienes Homebrew.
-- **Windows:** descarga y ejecuta el instalador MSI desde la [guía oficial de AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html). Abre una nueva terminal después de instalar.
-- **Linux x86_64:** ejecuta:
-
-```bash
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
-rm -rf aws awscliv2.zip
-```
-
-En Linux ARM64, utiliza el instalador para esa arquitectura siguiendo la [guía oficial de AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
-
-### 2.3 Configurar y verificar el acceso a AWS
-
-Para credenciales locales autorizadas, ejecuta:
-
-```bash
-aws configure
-```
-
-Introduce el Access Key ID, Secret Access Key y la región asignada por el docente. **Nunca compartas credenciales ni las guardes en el repositorio.** Si tu organización usa AWS IAM Identity Center o credenciales temporales, utiliza el método que indique el docente en lugar de claves de larga duración.
-
-Verifica que la CLI funciona y que estás en la cuenta correcta:
-
-```bash
-aws --version
 aws sts get-caller-identity
-aws configure get region
 ```
 
-El comando `aws sts get-caller-identity` debe mostrar tu cuenta y el ARN de la identidad autenticada. Si falla, resuelve el acceso antes de crear recursos. Tener AWS CLI instalado no significa que ya tengas credenciales ni permisos.
+Debes ver tu `Account`, `UserId` y `Arn`. Si ves error, ejecuta `aws configure` primero.
 
-### 2.4 Verificar ZIP
-
-En macOS/Linux o Codespaces:
+### Verificar zip
 
 ```bash
-zip -v
+zip --version
+# En Windows (PowerShell) usa: Compress-Archive o instala 7-zip
 ```
-
-En Windows puedes crear ZIP con PowerShell `Compress-Archive`, aunque los comandos de empaquetado de este laboratorio usan `zip` y deberán adaptarse si trabajas en Windows.
 
 ---
 
